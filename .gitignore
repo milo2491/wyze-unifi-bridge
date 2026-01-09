@@ -1,0 +1,18 @@
+# Environment files with secrets
+.env
+
+# Token data
+data/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo

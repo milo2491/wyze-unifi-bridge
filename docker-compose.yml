@@ -1,0 +1,88 @@
+services:
+  wyze-bridge:
+    image: mrlt8/wyze-bridge:latest
+    container_name: wyze-bridge
+    restart: unless-stopped
+    # ports not needed with host network mode
+    # ports:
+    #   - "8554:8554"    # RTSP
+    #   - "8888:8888"    # HLS
+    #   - "8889:8889"    # WebRTC
+    #   - "5000:5000"    # Web UI
+    environment:
+      # Wyze API credentials
+      # Get from: https://developer-api-console.wyze.com/
+      - WYZE_EMAIL=${WYZE_EMAIL}
+      - WYZE_PASSWORD=${WYZE_PASSWORD}
+      - API_ID=${WYZE_API_ID}
+      - API_KEY=${WYZE_API_KEY}
+
+      # For Apple SSO users: use refresh token instead of password
+      # Get from: https://services.wyze.com/api/v2/santa/refresh?tag=webview
+      - REFRESH_TOKEN=${WYZE_REFRESH_TOKEN:-}
+
+      # Stream quality settings - tuned for smooth playback
+      - QUALITY=HD
+      - BITRATE=255        # Max bitrate for best quality
+      - FPS=30             # 30fps for smooth video
+      - H264_ENC=h264
+      - IGNORE_OFFLINE=true
+
+      # Enable audio
+      - ENABLE_AUDIO=true
+      - AUDIO_CODEC=aac
+
+      # Enable all cameras by default
+      - FILTER_BLOCK=      # Comma-separated camera names to exclude
+      - FILTER_MODELS=     # Filter by model (e.g., WYZEC1-JZ)
+
+      # Disable authentication for local proxy access
+      - WB_AUTH=False
+
+      # Reconnection settings
+      - CONNECT_TIMEOUT=20
+      - OFFLINE_TIME=10
+      - ON_DEMAND=False    # Keep streams always running for UniFi
+
+      # Buffer settings for smoother playback
+      - MTX_READBUFFERCOUNT=1024
+
+      # Logging
+      - LOG_LEVEL=INFO
+
+      # Enable ONVIF for UniFi Protect discovery
+      - ENABLE_ONVIF=true
+
+    volumes:
+      # Persist tokens to avoid re-authentication
+      - ./data/tokens:/tokens
+
+    # Network mode for better camera connectivity
+    network_mode: host
+
+  # UniFi Cam Proxy - makes RTSP cameras appear as native UniFi cameras
+  # Duplicate this service for each camera you want to add to UniFi Protect
+  # Each camera needs a unique container name, MAC address, and RTSP URL
+  unifi-cam-proxy-example:
+    image: keshavdv/unifi-cam-proxy:dev
+    container_name: unifi-cam-proxy-example
+    restart: unless-stopped
+    entrypoint: ["unifi-cam-proxy"]
+    command:
+      - "--host=${UNIFI_PROTECT_IP}"
+      - "--cert=/data/client.pem"
+      - "--token=${UNIFI_ADOPT_TOKEN}"
+      - "--name=My Camera"                    # Camera name in UniFi Protect
+      - "--mac=AA:BB:CC:DD:EE:01"             # Unique MAC address for this camera
+      - "--ip=${HOST_IP:-192.168.1.100}"      # IP of this host running the bridge
+      - "--model=UVC G3 Flex"
+      - "--verbose"
+      - "rtsp"
+      - "-s"
+      - "rtsp://${HOST_IP:-192.168.1.100}:8554/camera-name"  # Camera name from wyze-bridge web UI
+    volumes:
+      - ./data/unifi-cam-proxy:/data
+    network_mode: host
+    depends_on:
+      - wyze-bridge
+
